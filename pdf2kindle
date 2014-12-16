@@ -31,7 +31,7 @@ def convert(filename, extra_opts=[]):
     if retcode != 0: return None
     return output_name
 
-def build_message(pdf_filename, convert=False):
+def build_message(pdf_filename):
     fmimetype, _ = mimetypes.guess_type(pdf_filename)
 
     m = message.Message()
@@ -45,10 +45,7 @@ def build_message(pdf_filename, convert=False):
     encap = message.Message()
     encap["From"] = FROM_ADDR
     encap["To"] = KINDLE_ADDR
-    if convert:
-        encap["Subject"] = "convert" 
-    else:
-        encap["Subject"] = "" 
+    encap["Subject"] = "" 
     encap.set_type("multipart/mixed")
     encap.attach(m)
     return encap
