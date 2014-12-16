@@ -1,0 +1,91 @@
+#!/usr/bin/env python
+from argparse import ArgumentParser
+from smtplib import SMTP_SSL, SMTP
+from getpass import getpass
+from email import message
+import mimetypes
+import base64
+import sys
+import subprocess
+import os
+
+try:
+    FROM_ADDR = os.environ["PDF2KINDLE_FROM"]
+    SMTP_HOST = os.environ["PDF2KINDLE_SMTP_HOST"]
+    SMTP_PORT = int(os.environ["PDF2KINDLE_SMTP_PORT"])
+    KINDLE_ADDR = os.environ["PDF2KINDLE_KINDLE"]
+except KeyError, e:
+    sys.stderr.write("Required environment variable '{0}' not defined.\n"\
+                     .format(e.args[0]))
+    sys.exit(1)
+
+def convert(filename, extra_opts=[]):
+    bin = "k2pdfopt"
+    output_path, _ = os.path.split(filename)
+    no_ext = filename.rsplit(".", 1)[0]
+    output_name = os.path.join(output_path, ".".join((no_ext, "kpw", "pdf")))
+    base_opts = [bin, "-ui-", "-dev", "kpw", 
+                      "-crgh", "0.15", "-x", "-o", output_name, filename]
+    base_opts.extend(extra_opts)
+    retcode = subprocess.call(base_opts)
+    if retcode != 0: return None
+    return output_name
+
+def build_message(pdf_filename, convert=False):
+    fmimetype, _ = mimetypes.guess_type(pdf_filename)
+
+    m = message.Message()
+    m["Content-Transfer-Encoding"] = "base64"
+    m.add_header("Content-Disposition", "attachment", 
+            filename=os.path.basename(pdf_filename))
+    m.set_type(fmimetype)
+    with open(pdf_filename) as f:
+        m.set_payload(base64.b64encode(f.read()))
+
+    encap = message.Message()
+    encap["From"] = FROM_ADDR
+    encap["To"] = KINDLE_ADDR
+    if convert:
+        encap["Subject"] = "convert" 
+    else:
+        encap["Subject"] = "" 
+    encap.set_type("multipart/mixed")
+    encap.attach(m)
+    return encap
+
+def perform_auth(cnxn, password):
+    cnxn.starttls()
+    print "*** Logging In."
+    cnxn.login(FROM_ADDR, password)
+
+def check_auth(password):
+    """Throws an exception if we can't log into the configured host
+    with this password."""
+    print "*** Connecting to {0}:{1}.".format(SMTP_HOST, SMTP_PORT)
+    cnxn = SMTP(SMTP_HOST, SMTP_PORT)
+    perform_auth(cnxn, password)
+    cnxn.quit()
+
+def mail(message, password):
+    print "*** Connecting to {0}:{1}.".format(SMTP_HOST, SMTP_PORT)
+    cnxn = SMTP(SMTP_HOST, SMTP_PORT)
+    perform_auth(cnxn, password)
+    print "*** Sending email."
+    cnxn.sendmail(FROM_ADDR, KINDLE_ADDR, message.as_string())
+    print "*** Email Sent successfully."
+    cnxn.quit()
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("pdf")
+    parser.add_argument("--keep", "-k", action="store_true")
+    password = getpass("Password for '{0}' on '{1}': ".format(FROM_ADDR, SMTP_HOST))
+    check_auth(password)
+    args = parser.parse_args()
+    cname = convert(args.pdf)
+    if cname is None:
+        print "Conversion failed for '{0}'.".format(args.pdf)
+        sys.exit(0)
+    mail(build_message(cname), password)
+    if not args.keep:
+        os.remove(cname)
