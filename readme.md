@@ -14,7 +14,7 @@ the tool you need to set 4 environment variables that tell `pdf2kindle` how
 to mail your pdf, and where to mail it to:
 
 | | |
------
+|---|---|
 | `PDF2KINDLE_FROM` | The 'From:' address of the mail, i.e. your email address. For example: `someperson@gmail.com` |
 | `PDF2KINDLE_SMTP_HOST` | The address of the host that delivers your mail. For example: `smtp.gmail.com` |
 | `PDF2KINDLE_SMTP_PORT` | The port the above host uses to receive mail. For Example: `465` |
